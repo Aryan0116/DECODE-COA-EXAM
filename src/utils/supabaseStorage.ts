@@ -4,6 +4,7 @@ import { User, UserRole } from "../context/AuthContext";
 import { v4 as uuidv4 } from 'uuid';
 import { Json } from "@/integrations/supabase/types";
 
+// USER FUNCTIONS
 export async function getUsers(): Promise<User[]> {
   try {
     const { data, error } = await supabase
@@ -22,7 +23,6 @@ export async function getUsers(): Promise<User[]> {
       createdAt: profile.created_at
     }));
   } catch (error) {
-    // console.error("Error getting users:", error);
     return [];
   }
 }
@@ -42,7 +42,6 @@ export async function saveUser(user: User): Promise<boolean> {
     if (error) throw error;
     return true;
   } catch (error) {
-    // console.error("Error saving user:", error);
     return false;
   }
 }
@@ -57,78 +56,72 @@ export async function deleteUser(userId: string): Promise<boolean> {
     if (error) throw error;
     return true;
   } catch (error) {
-    // console.error("Error deleting user:", error);
     return false;
   }
 }
 
+// EXAM FUNCTIONS
 export async function getExams(): Promise<Exam[]> {
   try {
-    // console.log("Fetching exams");
-    
     const { data: examsData, error: examsError } = await supabase
       .from('exams')
       .select('*');
 
-    if (examsError) {
-      // console.error("Error fetching exams:", examsError);
-      throw examsError;
+    if (examsError) throw examsError;
+    
+    if (!examsData || examsData.length === 0) return [];
+    
+    const examIds = examsData.map(exam => exam.id);
+    
+    // Fetch all exam questions in a single query
+    const { data: allExamQuestionsData, error: examQuestionsError } = await supabase
+      .from('exam_questions')
+      .select('exam_id, question_id')
+      .in('exam_id', examIds);
+    
+    if (examQuestionsError) throw examQuestionsError;
+    
+    const examQuestionsMap = new Map();
+    allExamQuestionsData?.forEach(item => {
+      if (!examQuestionsMap.has(item.exam_id)) {
+        examQuestionsMap.set(item.exam_id, []);
+      }
+      examQuestionsMap.get(item.exam_id).push(item.question_id);
+    });
+    
+    // Get all unique question IDs
+    const allQuestionIds = [...new Set(allExamQuestionsData?.map(item => item.question_id) || [])];
+    
+    let questionsMap = new Map();
+    if (allQuestionIds.length > 0) {
+      const { data: questionsData, error: questionsError } = await supabase
+        .from('questions')
+        .select('*')
+        .in('id', allQuestionIds);
+      
+      if (questionsError) throw questionsError;
+      
+      questionsMap = new Map(questionsData?.map(q => [
+        q.id, 
+        {
+          id: q.id,
+          text: q.question_text,
+          options: q.options ? (q.options as unknown as Option[]) : [],
+          correctAnswers: q.correct_answers || [],
+          marks: q.marks || 1,
+          chapterName: q.chapter_name || '',
+          coNumber: q.co_number || '',
+          image: q.image || null,
+          createdBy: q.created_by
+        }
+      ]));
     }
-
-    // console.log(`Found ${examsData?.length || 0} exams`);
     
-    const exams: Exam[] = [];
-    
-    for (const exam of examsData || []) {
-      // console.log(`Processing exam: ${exam.id} - ${exam.title}`);
+    return examsData.map(exam => {
+      const questionIds = examQuestionsMap.get(exam.id) || [];
+      const questions = questionIds.map(id => questionsMap.get(id)).filter(Boolean);
       
-      const { data: examQuestionsData, error: examQuestionsError } = await supabase
-        .from('exam_questions')
-        .select('question_id')
-        .eq('exam_id', exam.id);
-      
-      if (examQuestionsError) {
-        // console.error(`Error fetching question IDs for exam ${exam.id}:`, examQuestionsError);
-        throw examQuestionsError;
-      }
-      
-      const questionIds = examQuestionsData?.map(item => item.question_id) || [];
-      
-      let questions: Question[] = [];
-      
-      if (questionIds.length > 0) {
-        // console.log(`Found ${questionIds.length} question IDs for exam ${exam.id}`);
-        
-        const { data: questionsData, error: questionsError } = await supabase
-          .from('questions')
-          .select('*')
-          .in('id', questionIds);
-        
-        if (questionsError) {
-          // console.error(`Error fetching questions for exam ${exam.id}:`, questionsError);
-          throw questionsError;
-        }
-        
-        if (questionsData && questionsData.length > 0) {
-          // console.log(`Fetched ${questionsData.length} questions for exam ${exam.id}`);
-          
-          questions = questionsData.map(q => ({
-            id: q.id,
-            text: q.question_text,
-            options: q.options ? (q.options as unknown as Option[]) : [],
-            correctAnswers: q.correct_answers || [],
-            marks: q.marks || 1,
-            chapterName: q.chapter_name || '',
-            coNumber: q.co_number || '',
-            image: q.image || null,
-            createdBy: q.created_by
-          }));
-        }
-      } else {
-        // console.log(`No questions found for exam ${exam.id}`);
-      }
-      
-      exams.push({
+      return {
         id: exam.id,
         title: exam.title,
         description: exam.description || '',
@@ -140,21 +133,15 @@ export async function getExams(): Promise<Exam[]> {
         isActive: exam.is_active,
         createdAt: new Date(exam.created_at),
         leaderboardReleased: exam.leaderboard_released
-      });
-    }
-
-    // console.log(`Returning ${exams.length} exams with their questions`);
-    return exams;
+      };
+    });
   } catch (error) {
-    // console.error("Error getting exams:", error);
     return [];
   }
 }
 
 export async function saveExam(exam: Omit<Exam, 'questions'> & { questions: string[] }): Promise<boolean> {
   try {
-    // console.log("Saving exam:", exam.title, "with questions:", exam.questions);
-    
     const { data: examData, error: examError } = await supabase
       .from('exams')
       .upsert({
@@ -172,69 +159,39 @@ export async function saveExam(exam: Omit<Exam, 'questions'> & { questions: stri
       .select()
       .single();
 
-    if (examError) {
-      // console.error("Error saving exam data:", examError);
-      throw examError;
-    }
-
-    // console.log("Exam data saved successfully, ID:", examData.id);
+    if (examError) throw examError;
 
     if (examData && exam.questions.length > 0) {
-      const { error: deleteError } = await supabase
+      await supabase
         .from('exam_questions')
         .delete()
         .eq('exam_id', examData.id);
-
-      if (deleteError) {
-        // console.error("Error deleting existing exam questions:", deleteError);
-        throw deleteError;
-      }
-
-      // console.log("Deleted existing question associations");
 
       const examQuestionsData = exam.questions.map(questionId => ({
         exam_id: examData.id,
         question_id: questionId
       }));
 
-      // console.log("Adding new question associations:", examQuestionsData);
-
       const { error: insertError } = await supabase
         .from('exam_questions')
         .insert(examQuestionsData);
 
-      if (insertError) {
-        // console.error("Error inserting exam questions:", insertError);
-        throw insertError;
-      }
-      
-      // console.log("Successfully associated questions with exam");
-    } else {
-      // console.log("No questions to associate with exam");
+      if (insertError) throw insertError;
     }
 
     return true;
   } catch (error) {
-    // console.error("Error saving exam:", error);
     return false;
   }
 }
 
 export async function deleteExam(examId: string): Promise<boolean> {
   try {
-    const { error: eqError } = await supabase
-      .from('exam_questions')
-      .delete()
-      .eq('exam_id', examId);
-
-    // if (eqError) console.error("Error deleting exam questions:", eqError);
-
-    const { error: resultsError } = await supabase
-      .from('exam_results')
-      .delete()
-      .eq('exam_id', examId);
-
-    // if (resultsError) console.error("Error deleting exam results:", resultsError);
+    // Delete in parallel for better performance
+    await Promise.all([
+      supabase.from('exam_questions').delete().eq('exam_id', examId),
+      supabase.from('exam_results').delete().eq('exam_id', examId)
+    ]);
 
     const { error: examError } = await supabase
       .from('exams')
@@ -242,14 +199,13 @@ export async function deleteExam(examId: string): Promise<boolean> {
       .eq('id', examId);
 
     if (examError) throw examError;
-
     return true;
   } catch (error) {
-    // console.error("Error deleting exam:", error);
     return false;
   }
 }
 
+// EXAM RESULTS FUNCTIONS
 export async function getExamResults(): Promise<StudentExamSubmission[]> {
   try {
     const { data, error } = await supabase
@@ -278,15 +234,12 @@ export async function getExamResults(): Promise<StudentExamSubmission[]> {
       feedback: result.feedback
     }));
   } catch (error) {
-    // console.error("Error getting exam results:", error);
     return [];
   }
 }
 
 export async function saveExamResult(result: StudentExamSubmission): Promise<boolean> {
   try {
-    // console.log("Saving exam result:", result);
-    
     const resultId = result.id || uuidv4();
     
     const { error } = await supabase
@@ -306,15 +259,9 @@ export async function saveExamResult(result: StudentExamSubmission): Promise<boo
         feedback: result.feedback || null
       });
 
-    if (error) {
-      // console.error("Supabase error saving exam result:", error);
-      throw error;
-    }
-    
-    // console.log("Exam result saved successfully");
+    if (error) throw error;
     return true;
   } catch (error) {
-    // console.error("Error saving exam result:", error);
     return false;
   }
 }
@@ -329,7 +276,6 @@ export async function addFeedbackToResult(submissionId: string, feedback: string
     if (error) throw error;
     return true;
   } catch (error) {
-    // console.error("Error adding feedback to result:", error);
     return false;
   }
 }
@@ -344,24 +290,19 @@ export async function releaseExamResults(submissionId: string, released: boolean
     if (error) throw error;
     return true;
   } catch (error) {
-    // console.error("Error releasing exam results:", error);
     return false;
   }
 }
 
+// QUESTION FUNCTIONS
 export async function getQuestions(): Promise<Question[]> {
   try {
-    // console.log("Fetching all questions");
     const { data, error } = await supabase
       .from('questions')
       .select('*');
 
-    if (error) {
-      // console.error("Error fetching questions:", error);
-      throw error;
-    }
+    if (error) throw error;
 
-    // console.log(`Successfully fetched ${data?.length || 0} questions`);
     return (data || []).map(item => ({
       id: item.id,
       text: item.question_text,
@@ -374,7 +315,6 @@ export async function getQuestions(): Promise<Question[]> {
       createdBy: item.created_by
     }));
   } catch (error) {
-    // console.error("Error getting questions:", error);
     return [];
   }
 }
@@ -384,8 +324,6 @@ export async function saveQuestion(question: Question): Promise<boolean> {
     const questionId = question.id && question.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) 
       ? question.id 
       : uuidv4();
-    
-    // console.log("Saving question with ID:", questionId, "Text:", question.text);
     
     let imagePath = question.image;
     
@@ -400,16 +338,14 @@ export async function saveQuestion(question: Question): Promise<boolean> {
         const base64Data = matches[2];
         const fileName = `question_${questionId}.${fileExt}`;
         
-        const { data: uploadData, error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from('questions')
           .upload(fileName, base64Data, {
             contentType: `image/${fileExt}`,
             upsert: true
           });
         
-        if (uploadError) {
-          throw uploadError;
-        }
+        if (uploadError) throw uploadError;
         
         const { data: urlData } = await supabase.storage
           .from('questions')
@@ -417,7 +353,7 @@ export async function saveQuestion(question: Question): Promise<boolean> {
         
         imagePath = urlData.publicUrl;
       } catch (imageError) {
-        // console.error("Error uploading image:", imageError);
+        // Image upload failed, continue with original path
       }
     }
     
@@ -435,27 +371,19 @@ export async function saveQuestion(question: Question): Promise<boolean> {
         created_by: question.createdBy
       });
 
-    if (error) {
-      // console.error("Error saving question:", error);
-      throw error;
-    }
-    
-    // console.log("Question saved successfully");
+    if (error) throw error;
     return true;
   } catch (error) {
-    // console.error("Error saving question:", error);
     return false;
   }
 }
 
 export async function deleteQuestion(questionId: string): Promise<boolean> {
   try {
-    const { error: examQuestionError } = await supabase
+    await supabase
       .from('exam_questions')
       .delete()
       .eq('question_id', questionId);
-    
-    // if (examQuestionError) console.error("Error removing question from exams:", examQuestionError);
 
     const { error } = await supabase
       .from('questions')
@@ -465,11 +393,11 @@ export async function deleteQuestion(questionId: string): Promise<boolean> {
     if (error) throw error;
     return true;
   } catch (error) {
-    // console.error("Error deleting question:", error);
     return false;
   }
 }
 
+// LEADERBOARD FUNCTIONS
 export async function getLeaderboard(examId: string): Promise<any[]> {
   try {
     const { data, error } = await supabase
@@ -481,7 +409,6 @@ export async function getLeaderboard(examId: string): Promise<any[]> {
     if (error) throw error;
     return data || [];
   } catch (error) {
-    // console.error("Error getting leaderboard:", error);
     return [];
   }
 }
@@ -500,7 +427,6 @@ export async function saveLeaderboardEntry(examId: string, userId: string, score
     if (error) throw error;
     return true;
   } catch (error) {
-    // console.error("Error saving leaderboard entry:", error);
     return false;
   }
 }
@@ -515,19 +441,15 @@ export async function toggleLeaderboard(examId: string, released: boolean): Prom
     if (error) throw error;
     return true;
   } catch (error) {
-    // console.error("Error toggling leaderboard:", error);
     return false;
   }
 }
 
+// BATCH OPERATIONS
 export async function saveExams(exams: Exam[]): Promise<boolean> {
   try {
-    // console.log("Saving multiple exams:", exams.length);
-    
     for (const exam of exams) {
       const questionIds = exam.questions.map(q => q.id);
-      // console.log(`Saving exam ${exam.title} with ${questionIds.length} questions`);
-      
       await saveExam({
         ...exam,
         questions: questionIds
@@ -535,7 +457,6 @@ export async function saveExams(exams: Exam[]): Promise<boolean> {
     }
     return true;
   } catch (error) {
-    // console.error("Error saving exams:", error);
     return false;
   }
 }
@@ -547,7 +468,6 @@ export async function saveQuestions(questions: Question[]): Promise<boolean> {
     }
     return true;
   } catch (error) {
-    // console.error("Error saving questions:", error);
     return false;
   }
 }
@@ -559,11 +479,11 @@ export async function saveExamResults(results: StudentExamSubmission[]): Promise
     }
     return true;
   } catch (error) {
-    // console.error("Error saving exam results:", error);
     return false;
   }
 }
 
+// ANALYTICS FUNCTIONS
 export async function getExamResultsByExamId(examId: string): Promise<StudentExamSubmission[]> {
   try {
     const { data, error } = await supabase
@@ -572,10 +492,7 @@ export async function getExamResultsByExamId(examId: string): Promise<StudentExa
       .eq('exam_id', examId)
       .order('created_at', { ascending: false });
 
-    if (error) {
-      // console.error("Error fetching exam results:", error);
-      return [];
-    }
+    if (error) return [];
 
     return (data || []).map(result => ({
       id: result.id,
@@ -592,7 +509,6 @@ export async function getExamResultsByExamId(examId: string): Promise<StudentExa
       feedback: result.feedback || "",
     }));
   } catch (error) {
-    // console.error("Unexpected error fetching exam results:", error);
     return [];
   }
 }
@@ -613,10 +529,8 @@ export async function calculatePerformanceAnalytics(examId: string): Promise<any
 
     const totalScore = results.reduce((sum, result) => sum + result.score, 0);
     const averageScore = totalScore / results.length;
-
     const highestScore = Math.max(...results.map(result => result.score));
     const lowestScore = Math.min(...results.map(result => result.score));
-
     const scoreDistribution = calculateScoreDistribution(results);
 
     return {
@@ -627,7 +541,6 @@ export async function calculatePerformanceAnalytics(examId: string): Promise<any
       scoreDistribution
     };
   } catch (error) {
-    // console.error("Error calculating performance analytics:", error);
     return null;
   }
 }
@@ -641,7 +554,7 @@ const calculateScoreDistribution = (results: StudentExamSubmission[]): { range: 
     { min: 81, max: 100, range: '81-100%' }
   ];
 
-  const distribution = ranges.map(range => {
+  return ranges.map(range => {
     const count = results.filter(result => {
       const percentage = (result.score / result.totalMarks) * 100;
       return percentage >= range.min && percentage <= range.max;
@@ -649,8 +562,6 @@ const calculateScoreDistribution = (results: StudentExamSubmission[]): { range: 
 
     return { range: range.range, count };
   });
-
-  return distribution;
 };
 
 export async function getExamPerformanceStats(examId: string): Promise<any> {
@@ -668,25 +579,14 @@ export async function getExamPerformanceStats(examId: string): Promise<any> {
       };
     }
 
-    const questionsWithMostErrors = calculateQuestionsWithMostErrors(results, questions);
-
-    const averageCompletionTime = calculateAverageCompletionTime(results);
-
-    const topPerformers = calculateTopPerformers(results);
-
-    const timeDistribution = calculateTimeDistribution(results);
-
-    const scoreTrends = calculateScoreTrends(results);
-
     return {
-      questionsWithMostErrors,
-      averageCompletionTime,
-      topPerformers,
-      timeDistribution,
-      scoreTrends
+      questionsWithMostErrors: calculateQuestionsWithMostErrors(results, questions),
+      averageCompletionTime: calculateAverageCompletionTime(results),
+      topPerformers: calculateTopPerformers(results),
+      timeDistribution: calculateTimeDistribution(results),
+      scoreTrends: calculateScoreTrends(results)
     };
   } catch (error) {
-    // console.error("Error calculating exam performance stats:", error);
     return null;
   }
 }
@@ -694,7 +594,6 @@ export async function getExamPerformanceStats(examId: string): Promise<any> {
 const calculateQuestionsWithMostErrors = (results: StudentExamSubmission[], questions: Question[]): any[] => {
   const questionErrorCounts: Record<string, number> = {};
   const questionAttemptCounts: Record<string, number> = {};
-  
   const questionNumberMap: Record<string, number> = {};
   
   questions.forEach((question, index) => {
@@ -719,7 +618,6 @@ const calculateQuestionsWithMostErrors = (results: StudentExamSubmission[], ques
     const errorCount = questionErrorCounts[questionId] || 0;
     const attemptCount = questionAttemptCounts[questionId];
     const question = questions.find(q => q.id === questionId);
-    
     const errorRate = (errorCount / attemptCount) * 100;
     
     return {
@@ -751,28 +649,26 @@ const calculateAverageCompletionTime = (results: StudentExamSubmission[]): numbe
     return sum + (endTime - startTime);
   }, 0);
 
-  const averageCompletionTimeMs = totalCompletionTime / validResults.length;
-  return averageCompletionTimeMs / (60 * 1000);
+  return totalCompletionTime / (validResults.length * 60 * 1000);
 };
 
 const calculateTopPerformers = (results: StudentExamSubmission[]): any[] => {
-  const sortedResults = results.sort((a, b) => {
-    const percentageA = (a.score / (a.totalMarks || 1)) * 100;
-    const percentageB = (b.score / (b.totalMarks || 1)) * 100;
-    
-    return percentageB - percentageA;
-  });
-  
-  return sortedResults.slice(0, 5).map(result => {
-    const percentage = ((result.score / (result.totalMarks || 1)) * 100);
-    
-    return {
-      studentName: result.studentName || 'Anonymous',
-      score: result.score,
-      totalMarks: result.totalMarks,
-      percentage: typeof percentage === 'number' ? `${percentage.toFixed(1)}%` : `${percentage}%`
-    };
-  });
+  return results
+    .sort((a, b) => {
+      const percentageA = (a.score / (a.totalMarks || 1)) * 100;
+      const percentageB = (b.score / (b.totalMarks || 1)) * 100;
+      return percentageB - percentageA;
+    })
+    .slice(0, 5)
+    .map(result => {
+      const percentage = ((result.score / (result.totalMarks || 1)) * 100);
+      return {
+        studentName: result.studentName || 'Anonymous',
+        score: result.score,
+        totalMarks: result.totalMarks,
+        percentage: typeof percentage === 'number' ? `${percentage.toFixed(1)}%` : `${percentage}%`
+      };
+    });
 };
 
 const calculateTimeDistribution = (results: StudentExamSubmission[]): any[] => {
@@ -789,7 +685,7 @@ const calculateTimeDistribution = (results: StudentExamSubmission[]): any[] => {
            new Date(result.startTime).getTime() <= new Date(result.endTime).getTime();
   });
 
-  const timeDistribution = timeRanges.map(range => {
+  return timeRanges.map(range => {
     const count = validResults.filter(result => {
       const startTime = new Date(result.startTime).getTime();
       const endTime = new Date(result.endTime).getTime();
@@ -799,8 +695,6 @@ const calculateTimeDistribution = (results: StudentExamSubmission[]): any[] => {
 
     return { name: range.range, count };
   });
-
-  return timeDistribution;
 };
 
 const calculateScoreTrends = (results: StudentExamSubmission[]): any[] => {
@@ -821,7 +715,7 @@ const calculateScoreTrends = (results: StudentExamSubmission[]): any[] => {
     }
   });
   
-  const scoreTrends = Object.entries(studentScores)
+  return Object.entries(studentScores)
     .map(([studentName, data]) => {
       const maxPossibleScore = data.maxScore || 100;
       const avgScoreRaw = data.count > 0 ? (data.totalScore / data.count) : 0;
@@ -833,23 +727,9 @@ const calculateScoreTrends = (results: StudentExamSubmission[]): any[] => {
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
-  
-  return scoreTrends;
 };
 
-export function clearTemporaryAnswers(): void {
-  // console.log("Local storage functions disabled as requested");
-}
-
-export function getTemporaryAnswers(examId: string): Record<string, string[]> {
-  // console.log("Retrieving temporary answers for exam:", examId);
-  return {};
-}
-
-export function saveTemporaryAnswers(examId: string, answers: Record<string, string[]>): void {
-  // console.log("Temporary answers save requested for exam:", examId);
-}
-
+// IMAGE HANDLING
 export const blobUrlToBase64 = async (blobUrl: string): Promise<string> => {
   try {
     const response = await fetch(blobUrl);
@@ -865,7 +745,6 @@ export const blobUrlToBase64 = async (blobUrl: string): Promise<string> => {
       reader.readAsDataURL(blob);
     });
   } catch (error) {
-    // console.error('Error converting blob URL to base64:', error);
     throw new Error('Failed to convert image format');
   }
 };
@@ -891,17 +770,14 @@ export const uploadQuestionImage = async (imageData: string): Promise<string> =>
     }
     const uint8Array = new Uint8Array(byteArrays);
     
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from('question_images')
       .upload(filename, uint8Array, {
         contentType: 'image/jpeg',
         upsert: true
       });
     
-    if (error) {
-      // console.error('Supabase Storage upload error:', error);
-      throw error;
-    }
+    if (error) throw error;
     
     const { data: publicUrlData } = supabase.storage
       .from('question_images')
@@ -909,7 +785,6 @@ export const uploadQuestionImage = async (imageData: string): Promise<string> =>
     
     return publicUrlData.publicUrl;
   } catch (error) {
-    // console.error('Error uploading image:', error);
     throw new Error('Failed to upload image');
   }
 };
@@ -931,24 +806,8 @@ export const isSupabaseStorageUrl = (url: string): boolean => {
          url.includes('.supabase.in/storage/v1');
 };
 
-// export const createQuestionImagesBucket = async (): Promise<void> => {
-//   try {
-//     // console.log('Creating questions bucket for image storage');
-//     const { data, error } = await supabase.storage.getBucket('question_images');
-    
-//     if (error && error.message.includes('does not exist')) {
-//       const { error: createError } = await supabase.storage.createBucket('question_images', {
-//         public: true,
-//         fileSizeLimit: 5242880,
-//       });
-      
-//       if (createError) {
-//         // console.error('Error creating bucket:', createError);
-//       }
-//     }
-//   } catch (error) {
-//     // console.error('Error setting up storage bucket:', error);
-//   }
-// };
-
-// createQuestionImagesBucket();
+// REMOVED UNUSED FUNCTIONS:
+// - clearTemporaryAnswers
+// - getTemporaryAnswers
+// - saveTemporaryAnswers
+// - createQuestionImagesBucket

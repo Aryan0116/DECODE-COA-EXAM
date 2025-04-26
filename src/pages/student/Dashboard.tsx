@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense, lazy } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,14 +6,88 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Award, Calendar, Clock, Moon, Sun, Eye } from "lucide-react";
+import { Award, Calendar, Clock, Moon, Sun } from "lucide-react";
 import { mockExams, Exam, StudentExamSubmission, Question } from "@/utils/examTypes";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { getExams, getExamResults, getQuestions, getLeaderboard } from "@/utils/supabaseStorage";
-import StudentExamDetails from "@/components/student/StudentExamDetails";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTheme } from "@/hooks/use-theme";
-import Leaderboard from "@/components/leaderboard/Leaderboard";
+import { Skeleton } from "@/components/ui/skeleton";
+
+// Lazy load components to improve initial load time
+const StudentExamDetails = lazy(() => import("@/components/student/StudentExamDetails"));
+const Leaderboard = lazy(() => import("@/components/leaderboard/Leaderboard"));
+
+// Loading spinner component
+const LoadingSpinner = () => (
+  <div className="flex justify-center items-center py-12">
+    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+  </div>
+);
+
+// Result item component to reduce re-renders
+const ResultItem = ({ submission, onViewDetails }) => {
+  return (
+    <div 
+      className="flex items-center justify-between p-4 rounded-lg border bg-white dark:bg-gray-800 dark:border-gray-700"
+    >
+      <div>
+        <h3 className="font-medium">{submission.examTitle}</h3>
+        <p className="text-sm text-gray-500">
+          {new Date(submission.endTime).toLocaleDateString()}
+        </p>
+        {submission.released && submission.feedback && (
+          <p className="text-xs text-blue-600 mt-1">
+            Teacher feedback available
+          </p>
+        )}
+      </div>
+      {submission.released ? (
+        <div className="flex items-center gap-2">
+          <span className="text-sm bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-3 py-1 rounded-full">
+            {Math.round((submission.score/submission.totalMarks)*100)}%
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onViewDetails(submission)}
+          >
+            View Details
+          </Button>
+        </div>
+      ) : (
+        <span className="text-sm bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 px-3 py-1 rounded-full">
+          Pending
+        </span>
+      )}
+    </div>
+  );
+};
+
+// Skeleton loader for result items
+const ResultSkeleton = () => (
+  <div className="flex items-center justify-between p-4 rounded-lg border bg-white dark:bg-gray-800 dark:border-gray-700 animate-pulse">
+    <div className="space-y-2">
+      <Skeleton className="h-4 w-32" />
+      <Skeleton className="h-3 w-24" />
+    </div>
+    <div className="flex items-center gap-2">
+      <Skeleton className="h-8 w-12 rounded-full" />
+      <Skeleton className="h-8 w-24 rounded-md" />
+    </div>
+  </div>
+);
+
+// Statistic card component
+const StatCard = ({ title, value, icon: Icon, color }) => (
+  <div className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4 shadow-sm">
+    <div className={`w-10 h-10 rounded-full ${color} flex items-center justify-center mb-3`}>
+      <Icon className="h-5 w-5" />
+    </div>
+    <h3 className="text-lg font-bold">{value}</h3>
+    <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
+  </div>
+);
 
 const StudentDashboard = () => {
   const { user, isAuthenticated } = useAuth();
@@ -24,11 +98,12 @@ const StudentDashboard = () => {
   const [exams, setExams] = useState<Exam[]>([]);
   const [submissions, setSubmissions] = useState<StudentExamSubmission[]>([]);
   const [examCode, setExamCode] = useState("");
-  const [leaderboards, setLeaderboards] = useState<Record<string, any[]>>({});
+  const [leaderboardExams, setLeaderboardExams] = useState<string[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   
   const [selectedSubmission, setSelectedSubmission] = useState<StudentExamSubmission | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [loading, setLoading] = useState(true);
   
   const handleStartExam = () => {
     if (!examCode) {
@@ -72,64 +147,77 @@ const StudentDashboard = () => {
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "student") {
       navigate("/login");
-    } else {
-      const loadData = async () => {
-        try {
-          const storedExams = await getExams();
-          const storedSubmissions = await getExamResults();
-          const storedQuestions = await getQuestions();
-          
-          setExams(storedExams.length > 0 ? storedExams : mockExams);
-          
-          const userSubmissions = storedSubmissions.filter(sub => sub.studentId === user.id);
-          setSubmissions(userSubmissions);
-          
-          setQuestions(storedQuestions);
-          
-          const studentExams = userSubmissions
-            .filter(sub => sub.released)
-            .map(sub => sub.examId);
-          
-          const leaderboardData: Record<string, any[]> = {};
-          
-          for (const examId of studentExams) {
-            const exam = storedExams.find(e => e.id === examId);
-            if (exam && exam.leaderboardReleased) {
-              const leaderboardItems = await getLeaderboard(examId);
-              leaderboardData[examId] = leaderboardItems;
-            }
-          }
-          
-          setLeaderboards(leaderboardData);
-        } catch (error) {
-          console.error("Error loading dashboard data:", error);
+      return;
+    }
+    
+    let isMounted = true;
+    setLoading(true);
+    
+    const loadData = async () => {
+      try {
+        // Load data in parallel for better performance
+        const [storedExams, storedSubmissions, storedQuestions] = await Promise.all([
+          getExams(),
+          getExamResults(),
+          getQuestions()
+        ]);
+        
+        if (!isMounted) return;
+        
+        setExams(storedExams.length > 0 ? storedExams : mockExams);
+        
+        const userSubmissions = storedSubmissions.filter(sub => sub.studentId === user.id);
+        setSubmissions(userSubmissions);
+        
+        setQuestions(storedQuestions);
+        
+        // Get exam IDs with released leaderboards
+        const examsWithLeaderboard = storedExams
+          .filter(exam => exam.leaderboardReleased)
+          .map(exam => exam.id);
+        
+        setLeaderboardExams(examsWithLeaderboard);
+        
+        // Delay setting loading to false to prevent flickering for fast loads
+        setTimeout(() => {
+          if (isMounted) setLoading(false);
+        }, 300);
+        
+      } catch (error) {
+        console.error("Error loading dashboard data:", error);
+        if (isMounted) {
+          setLoading(false);
           toast({
             title: "Error loading data",
             description: "Please try refreshing the page",
             variant: "destructive",
           });
         }
-      };
-      
-      loadData();
-    }
+      }
+    };
+    
+    loadData();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [isAuthenticated, user, navigate, toast]);
 
-  const examsTaken = submissions.length;
-  const releasedExams = submissions.filter(sub => sub.released);
-  const averageScore = releasedExams.length 
-    ? Math.round(releasedExams.reduce((sum, sub) => sum + (sub.score / sub.totalMarks * 100), 0) / releasedExams.length) 
-    : 0;
-  const totalTime = submissions.reduce((sum, sub) => {
-    const start = new Date(sub.startTime).getTime();
-    const end = new Date(sub.endTime).getTime();
-    return sum + Math.round((end - start) / (1000 * 60));
-  }, 0);
-
-  // Get exam IDs with released leaderboards
-  const leaderboardExams = exams
-    .filter(exam => exam.leaderboardReleased)
-    .map(exam => exam.id);
+  // Memo-compatible calculation of statistics
+  const statistics = (() => {
+    const examsTaken = submissions.length;
+    const releasedExams = submissions.filter(sub => sub.released);
+    const averageScore = releasedExams.length 
+      ? Math.round(releasedExams.reduce((sum, sub) => sum + (sub.score / sub.totalMarks * 100), 0) / releasedExams.length) 
+      : 0;
+    const totalTime = submissions.reduce((sum, sub) => {
+      const start = new Date(sub.startTime).getTime();
+      const end = new Date(sub.endTime).getTime();
+      return sum + Math.round((end - start) / (1000 * 60));
+    }, 0);
+    
+    return { examsTaken, releasedExams, averageScore, totalTime };
+  })();
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-white to-blue-50 dark:from-gray-900 dark:to-gray-800">
@@ -179,36 +267,38 @@ const StudentDashboard = () => {
                   <CardDescription>Your exam performance overview</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-3 gap-4">
-                    {[
-                      {
-                        title: "Exams Taken",
-                        value: examsTaken.toString(),
-                        icon: Calendar,
-                        color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-                      },
-                      {
-                        title: "Average Score",
-                        value: `${averageScore}%`,
-                        icon: Award,
-                        color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-                      },
-                      {
-                        title: "Total Time",
-                        value: `${totalTime} mins`,
-                        icon: Clock,
-                        color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
-                      },
-                    ].map((stat, i) => (
-                      <div key={i} className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4 shadow-sm">
-                        <div className={`w-10 h-10 rounded-full ${stat.color} flex items-center justify-center mb-3`}>
-                          <stat.icon className="h-5 w-5" />
+                  {loading ? (
+                    <div className="grid grid-cols-3 gap-4">
+                      {[...Array(3)].map((_, i) => (
+                        <div key={i} className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4 shadow-sm">
+                          <Skeleton className="w-10 h-10 rounded-full mb-3" />
+                          <Skeleton className="h-6 w-12 mb-1" />
+                          <Skeleton className="h-4 w-20" />
                         </div>
-                        <h3 className="text-lg font-bold">{stat.value}</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{stat.title}</p>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      <StatCard
+                        title="Exams Taken"
+                        value={statistics.examsTaken.toString()}
+                        icon={Calendar}
+                        color="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                      />
+                      <StatCard
+                        title="Average Score"
+                        value={`${statistics.averageScore}%`}
+                        icon={Award}
+                        color="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                      />
+                      {/* <StatCard
+                        title="Total Time"
+                        value={`${statistics.totalTime} mins`}
+                        icon={Clock}
+                        color="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300"
+                      /> */}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -228,96 +318,66 @@ const StudentDashboard = () => {
 
                     <TabsContent value="all" className="mt-4">
                       <ScrollArea className="h-[400px]">
-                        <div className="space-y-4">
-                          {submissions.length > 0 ? (
-                            submissions.map((submission) => (
-                              <div key={submission.id} 
-                                className="flex items-center justify-between p-4 rounded-lg border bg-white dark:bg-gray-800 dark:border-gray-700">
-                                <div>
-                                  <h3 className="font-medium">{submission.examTitle}</h3>
-                                  <p className="text-sm text-gray-500">
-                                    {new Date(submission.endTime).toLocaleDateString()}
-                                  </p>
-                                </div>
-                                {submission.released ? (
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-3 py-1 rounded-full">
-                                      {Math.round((submission.score/submission.totalMarks)*100)}%
-                                    </span>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleViewDetails(submission)}
-                                    >
-                                      View Details
-                                    </Button>
-                                  </div>
-                                ) : (
-                                  <span className="text-sm bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 px-3 py-1 rounded-full">
-                                    Pending
-                                  </span>
-                                )}
-                              </div>
-                            ))
-                          ) : (
-                            <div className="text-center py-8">
-                              <p className="text-gray-500">No exam results yet</p>
-                            </div>
-                          )}
-                        </div>
+                        {loading ? (
+                          <div className="space-y-4">
+                            {[...Array(3)].map((_, i) => (
+                              <ResultSkeleton key={i} />
+                            ))}
+                          </div>
+                        ) : submissions.length > 0 ? (
+                          <div className="space-y-4">
+                            {submissions.map((submission) => (
+                              <ResultItem 
+                                key={submission.id} 
+                                submission={submission} 
+                                onViewDetails={handleViewDetails} 
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8">
+                            <p className="text-gray-500">No exam results yet</p>
+                          </div>
+                        )}
                       </ScrollArea>
                     </TabsContent>
 
                     <TabsContent value="released" className="mt-4">
                       <ScrollArea className="h-[400px]">
-                        <div className="space-y-4">
-                          {releasedExams.length > 0 ? (
-                            releasedExams.map((submission) => (
-                              <div key={submission.id} 
-                                className="flex items-center justify-between p-4 rounded-lg border bg-white dark:bg-gray-800 dark:border-gray-700">
-                                <div>
-                                  <h3 className="font-medium">{submission.examTitle}</h3>
-                                  {submission.released && submission.feedback && (
-                                  <p className="text-xs text-blue-600 mt-1">
-                                    Teacher feedback available
-                                  </p>
-                                )}
-                                  <p className="text-sm text-gray-500">
-                                    {new Date(submission.endTime).toLocaleDateString()}
-                                  </p>
-                                  
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-3 py-1 rounded-full">
-                                    {Math.round((submission.score/submission.totalMarks)*100)}%
-                                  </span>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleViewDetails(submission)}
-                                  >
-                                    View Details
-                                  </Button>
-                                </div>
-                              </div>
-                            ))
-                          ) : (
-                            <div className="text-center py-8">
-                              <p className="text-gray-500">No released results yet</p>
-                            </div>
-                          )}
-                        </div>
+                        {loading ? (
+                          <div className="space-y-4">
+                            {[...Array(3)].map((_, i) => (
+                              <ResultSkeleton key={i} />
+                            ))}
+                          </div>
+                        ) : statistics.releasedExams.length > 0 ? (
+                          <div className="space-y-4">
+                            {statistics.releasedExams.map((submission) => (
+                              <ResultItem 
+                                key={submission.id} 
+                                submission={submission} 
+                                onViewDetails={handleViewDetails} 
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8">
+                            <p className="text-gray-500">No released results yet</p>
+                          </div>
+                        )}
                       </ScrollArea>
                     </TabsContent>
                   </Tabs>
                 </CardContent>
               </Card>
 
-              {leaderboardExams.length > 0 && (
+              {!loading && leaderboardExams.length > 0 && (
                 <div className="space-y-4">
-                  {leaderboardExams.map(examId => (
-                    <Leaderboard key={examId} examId={examId} />
-                  ))}
+                  <Suspense fallback={<LoadingSpinner />}>
+                    {leaderboardExams.map(examId => (
+                      <Leaderboard key={examId} examId={examId} />
+                    ))}
+                  </Suspense>
                 </div>
               )}
             </div>
@@ -326,12 +386,14 @@ const StudentDashboard = () => {
       </main>
       
       {selectedSubmission && (
-        <StudentExamDetails
-          submission={selectedSubmission}
-          questions={questions}
-          open={showDetails}
-          onClose={() => setShowDetails(false)}
-        />
+        <Suspense fallback={<LoadingSpinner />}>
+          <StudentExamDetails
+            submission={selectedSubmission}
+            questions={questions}
+            open={showDetails}
+            onClose={() => setShowDetails(false)}
+          />
+        </Suspense>
       )}
     </div>
   );
