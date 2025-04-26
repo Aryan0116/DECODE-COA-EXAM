@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { Exam, Question, StudentExamAnswer, StudentExamSubmission } from "@/utils/examTypes";
-import { ArrowLeft, ArrowRight, Clock, AlertCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock, AlertCircle, Maximize, Minimize } from "lucide-react";
 import { getExams, getExamResults, saveExamResult } from "@/utils/supabaseStorage";
 import { v4 as uuidv4 } from 'uuid';
 
@@ -37,7 +37,12 @@ const TakeExam = () => {
   const [showStudentForm, setShowStudentForm] = useState(true);
   const [tabSwitchWarnings, setTabSwitchWarnings] = useState(0);
   const [warningShown, setWarningShown] = useState(false);
-  const [windowFocused, setWindowFocused] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Track events separately to prevent double counting
+  const visibilityEventRef = useRef(false);
+  const blurEventRef = useRef(false);
+  
   useEffect(() => {
     const loadExam = async () => {
       if (!examId) {
@@ -108,6 +113,7 @@ const TakeExam = () => {
       });
     }
   }, [isAuthenticated, user, navigate, toast]);
+  
   useEffect(() => {
     if (!examStarted || examCompleted || !examId) return;
     
@@ -133,6 +139,7 @@ const TakeExam = () => {
       console.error("Error loading answers from temporary storage:", error);
     }
   }, [examId, examStarted]);
+  
   useEffect(() => {
     if (!examStarted || examCompleted) return;
     
@@ -166,19 +173,7 @@ const TakeExam = () => {
     
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      
-      const newWarningCount = tabSwitchWarnings + 1;
-      setTabSwitchWarnings(newWarningCount);
-      
-      if (newWarningCount >= 3) {
-        // Will auto-submit but need to prevent immediate navigation
-        e.returnValue = "Your exam is being submitted due to navigation violations.";
-        // The auto-submit will happen when visibility changes
-      } else {
-        e.returnValue = `Warning ${newWarningCount}/2: Navigating away will count as a violation. Your exam will be auto-submitted after 3 violations.`;
-      }
-      
-      return e.returnValue;
+      return e.returnValue = "Are you sure you want to leave? Your exam may be auto-submitted.";
     };
     
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -186,19 +181,29 @@ const TakeExam = () => {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [examStarted, examCompleted, tabSwitchWarnings]);
+  }, [examStarted, examCompleted]);
+  
+  // Handle visibility changes (tab switches)
   useEffect(() => {
     if (!examStarted || examCompleted) return;
   
     const handleVisibilityChange = () => {
       if (document.hidden && !isSubmittingRef.current) {
-        // Page is hidden (user switched tabs or minimized)
+        // Prevent double counting
+        if (blurEventRef.current) {
+          blurEventRef.current = false;
+          return;
+        }
+        
+        visibilityEventRef.current = true;
+        
+        // Page is hidden (user switched tabs)
         const newWarningCount = tabSwitchWarnings + 1;
         setTabSwitchWarnings(newWarningCount);
         
         if (newWarningCount >= 3) {
           // Third switch - auto submit
-          console.log("Third tab switch detected - auto-submitting exam");
+          console.log("Third violation detected - auto-submitting exam");
           toast({
             title: "Exam auto-submitted",
             description: "Your exam has been submitted due to multiple tab switching violations.",
@@ -209,11 +214,16 @@ const TakeExam = () => {
           // First or second warning
           setWarningShown(true);
           toast({
-            title: `Warning ${newWarningCount}/2`,
-            description: `Changing tabs or windows is not allowed. Your exam will be submitted automatically on the next violation.`,
+            title: `Warning ${newWarningCount}/3`,
+            description: `Changing tabs or windows is not allowed. Your exam will be submitted automatically after 3 violations.`,
             variant: "destructive",
           });
         }
+        
+        // Reset after a short delay
+        setTimeout(() => {
+          visibilityEventRef.current = false;
+        }, 100);
       }
     };
   
@@ -224,20 +234,26 @@ const TakeExam = () => {
     };
   }, [examStarted, examCompleted, tabSwitchWarnings]);
 
+  // Handle window blur/focus
   useEffect(() => {
     if (!examStarted || examCompleted) return;
   
     const handleWindowBlur = () => {
-      if (!isSubmittingRef.current && windowFocused) {
-        setWindowFocused(false);
+      if (!isSubmittingRef.current) {
+        // Prevent double counting
+        if (visibilityEventRef.current) {
+          return;
+        }
         
-        // Only increment warning if we're moving from focused to unfocused
+        blurEventRef.current = true;
+        
+        // Only increment warning if this is a genuine window blur
         const newWarningCount = tabSwitchWarnings + 1;
         setTabSwitchWarnings(newWarningCount);
         
         if (newWarningCount >= 3) {
           // Third violation - auto submit
-          console.log("Third focus violation detected - auto-submitting exam");
+          console.log("Third violation detected - auto-submitting exam");
           toast({
             title: "Exam auto-submitted",
             description: "Your exam has been submitted due to multiple window focus violations.",
@@ -248,27 +264,83 @@ const TakeExam = () => {
           // First or second warning
           setWarningShown(true);
           toast({
-            title: `Warning ${newWarningCount}/2`,
-            description: `Changing windows is not allowed. Your exam will be submitted automatically on the next violation.`,
+            title: `Warning ${newWarningCount}/3`,
+            description: `Changing windows is not allowed. Your exam will be submitted automatically after 3 violations.`,
             variant: "destructive",
           });
         }
+        
+        // Reset after a short delay
+        setTimeout(() => {
+          blurEventRef.current = false;
+        }, 100);
       }
     };
   
-    const handleWindowFocus = () => {
-      // Just update the focus state, don't warn on return to the exam
-      setWindowFocused(true);
-    };
-  
     window.addEventListener('blur', handleWindowBlur);
-    window.addEventListener('focus', handleWindowFocus);
     
     return () => {
       window.removeEventListener('blur', handleWindowBlur);
-      window.removeEventListener('focus', handleWindowFocus);
     };
-  }, [examStarted, examCompleted, tabSwitchWarnings, windowFocused]);
+  }, [examStarted, examCompleted, tabSwitchWarnings]);
+
+  // Fullscreen handling
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      // Update fullscreen state
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  // Enter fullscreen when exam starts
+  useEffect(() => {
+    if (examStarted && !examCompleted) {
+      enterFullscreen();
+    } else if (examCompleted) {
+      exitFullscreen();
+    }
+  }, [examStarted, examCompleted]);
+
+  const enterFullscreen = () => {
+    try {
+      const docElement = document.documentElement;
+      if (docElement.requestFullscreen) {
+        docElement.requestFullscreen();
+      }
+    } catch (error) {
+      console.error("Error entering fullscreen:", error);
+      toast({
+        title: "Fullscreen Warning",
+        description: "Unable to enter fullscreen mode. For the best exam experience, please use fullscreen.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const exitFullscreen = () => {
+    try {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    } catch (error) {
+      console.error("Error exiting fullscreen:", error);
+    }
+  };
+
+  const toggleFullscreen = () => {
+    if (isFullscreen) {
+      exitFullscreen();
+    } else {
+      enterFullscreen();
+    }
+  };
+  
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
@@ -536,62 +608,63 @@ const TakeExam = () => {
               )}
             </CardHeader>
             <CardContent className="space-y-6">
-  {/* Exam Instructions - Always shown at the top */}
-  <div className="space-y-2">
-    <h3 className="font-medium">Exam Instructions</h3>
-    <p className="text-gray-600">{exam.description}</p>
-    <ul className="list-disc list-inside space-y-1 text-gray-600 mt-2">
-      <li>This exam contains {exam.questions.length} questions</li>
-      <li>Total marks: {exam.totalMarks}</li>
-      <li>Time limit: {exam.duration} minutes</li>
-      <li>You cannot pause the exam once started</li>
-    </ul>
-  </div>
-  
-  {/* Warning notice */}
-  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-    <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
-    <div>
-      <h4 className="font-medium text-amber-800">Important</h4>
-      <p className="text-sm text-amber-700">
-        Once you start the exam, do not refresh the page or navigate away as it will result in automatic submission.
-      </p>
-    </div>
-  </div>
-  
-  {/* Form Instructions */}
-  <div className="space-y-2">
-    <h3 className="font-medium">Registration</h3>
-    <p className="text-gray-600">Please enter your details below to begin the exam.</p>
-  </div>
-  
-  {/* Student Form */}
-  <div className="space-y-4">
-    <div className="space-y-2">
-      <Label htmlFor="rollNumber">Roll Number</Label>
-      <Input
-        id="rollNumber"
-        value={studentRollNumber}
-        onChange={(e) => setStudentRollNumber(e.target.value)}
-        placeholder="Enter your roll number"
-        required
-      />
-    </div>
-    <div className="space-y-2">
-      <Label htmlFor="phone">Phone Number</Label>
-      <Input
-        id="phone"
-        value={studentPhone}
-        onChange={(e) => setStudentPhone(e.target.value)}
-        placeholder="Enter your phone number"
-        required
-      />
-    </div>
-    <Button onClick={handleStartExam} className="w-full" size="lg">
-      Start Exam
-    </Button>
-  </div>
-</CardContent>
+              {/* Exam Instructions - Always shown at the top */}
+              <div className="space-y-2">
+                <h3 className="font-medium">Exam Instructions</h3>
+                <p className="text-gray-600">{exam.description}</p>
+                <ul className="list-disc list-inside space-y-1 text-gray-600 mt-2">
+                  <li>This exam contains {exam.questions.length} questions</li>
+                  <li>Total marks: {exam.totalMarks}</li>
+                  <li>Time limit: {exam.duration} minutes</li>
+                  <li>You cannot pause the exam once started</li>
+                  <li>The exam will run in fullscreen mode for better focus</li>
+                </ul>
+              </div>
+              
+              {/* Warning notice */}
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-medium text-amber-800">Important</h4>
+                  <p className="text-sm text-amber-700">
+                    Once you start the exam, do not refresh the page, navigate away, or exit fullscreen as it may result in automatic submission after 3 violations.
+                  </p>
+                </div>
+              </div>
+              
+              {/* Form Instructions */}
+              <div className="space-y-2">
+                <h3 className="font-medium">Registration</h3>
+                <p className="text-gray-600">Please enter your details below to begin the exam.</p>
+              </div>
+              
+              {/* Student Form */}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="rollNumber">Roll Number</Label>
+                  <Input
+                    id="rollNumber"
+                    value={studentRollNumber}
+                    onChange={(e) => setStudentRollNumber(e.target.value)}
+                    placeholder="Enter your roll number"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <Input
+                    id="phone"
+                    value={studentPhone}
+                    onChange={(e) => setStudentPhone(e.target.value)}
+                    placeholder="Enter your phone number"
+                    required
+                  />
+                </div>
+                <Button onClick={handleStartExam} className="w-full" size="lg">
+                  Start Exam
+                </Button>
+              </div>
+            </CardContent>
           </Card>
         ) : examCompleted ? (
           <Card className="max-w-2xl mx-auto animate-fade-in">
@@ -628,11 +701,31 @@ const TakeExam = () => {
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="flex items-center justify-between">
               <h1 className="text-2xl font-bold">{exam.title}</h1>
-              <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-full">
-                <Clock className="h-4 w-4 text-blue-600" />
-                <span className="font-mono font-medium text-blue-700">
-                  {formatTime(timeRemaining)}
-                </span>
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                  onClick={toggleFullscreen}
+                >
+                  {isFullscreen ? (
+                    <>
+                      <Minimize className="h-4 w-4" />
+                      Exit Fullscreen
+                    </>
+                  ) : (
+                    <>
+                      <Maximize className="h-4 w-4" />
+                      Enter Fullscreen
+                    </>
+                  )}
+                </Button>
+                <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-full">
+                  <Clock className="h-4 w-4 text-blue-600" />
+                  <span className="font-mono font-medium text-blue-700">
+                    {formatTime(timeRemaining)}
+                  </span>
+                </div>
               </div>
             </div>
             
@@ -753,26 +846,26 @@ const TakeExam = () => {
         )}
       </main>
       {warningShown && examStarted && !examCompleted && (
-  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-    <div className="bg-white p-6 rounded-lg max-w-md w-full">
-      <h3 className="text-lg font-bold text-red-600">Warning {tabSwitchWarnings}/2</h3>
-      <p className="my-4">
-        Changing tabs or navigating away from this page is not allowed during the exam.
-        {tabSwitchWarnings === 2 ? (
-          <strong> Your exam will be automatically submitted on the next violation.</strong>
-        ) : (
-          ` You have ${2 - tabSwitchWarnings} warnings remaining before auto-submission.`
-        )}
-      </p>
-      <Button 
-        onClick={() => setWarningShown(false)} 
-        className="w-full"
-      >
-        I Understand
-      </Button>
-    </div>
-  </div>
-)}
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg max-w-md w-full">
+            <h3 className="text-lg font-bold text-red-600">Warning {tabSwitchWarnings}/3</h3>
+            <p className="my-4">
+              Changing tabs, exiting fullscreen or navigating away from this page is not allowed during the exam.
+              {tabSwitchWarnings >= 2 ? (
+                <strong> Your exam will be automatically submitted on the next violation.</strong>
+              ) : (
+                ` You have ${3 - tabSwitchWarnings} warnings remaining before auto-submission.`
+              )}
+            </p>
+            <Button 
+              onClick={() => setWarningShown(false)} 
+              className="w-full"
+            >
+              I Understand
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
