@@ -230,7 +230,7 @@ const PerformanceStats = ({ examId, stats: providedStats }: PerformanceStatsProp
                   />
                   <Tooltip 
                     formatter={(value) => [`${value.toFixed(1)}%`, 'Average Score']}
-                    labelFormatter={(label) => `Date: ${label}`}
+                    labelFormatter={(label) => `NAME: ${label}`}
                   />
                   <Legend wrapperStyle={{ paddingTop: 10 }} />
                   <Line 
