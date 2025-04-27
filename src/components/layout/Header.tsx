@@ -123,14 +123,13 @@ export default function Header() {
         <div className="flex gap-4 items-center">
           {/* COAHUB Link with Button styling */}
           <a 
-            href="https://www.coahub.in" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-600 to-blue-400 text-white font-medium shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105"
-          >
-            <ExternalLink className="h-4 w-4" />
-            COAHUB
-          </a>
+  href="https://aryan0116.github.io/DECODE-CO-A/" 
+  className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-600 to-blue-400 text-white font-medium shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105"
+>
+  <ExternalLink className="h-4 w-4" />
+  DECODE CO-A
+</a>
+
           
           {isAuthenticated ? (
             <DropdownMenu>
