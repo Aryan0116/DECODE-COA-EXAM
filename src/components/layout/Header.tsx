@@ -107,13 +107,11 @@ export default function Header() {
               <nav className="flex flex-col gap-4 mt-4">
                 <NavLinks />
                 <a 
-                  href="https://www.coahub.in" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
+                  href="https://aryan0116.github.io/DECODE-CO-A/" 
                   className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
                 >
                   <ExternalLink className="h-4 w-4" />
-                  COAHUB
+                  DECODE CO-A
                 </a>
               </nav>
             </SheetContent>
