@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef  } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import { useAuth } from "@/context/AuthContext";
@@ -28,6 +28,7 @@ const CreateExam = () => {
   const [selectedQuestions, setSelectedQuestions] = useState<Question[]>([]);
   const [filteredQuestions, setFilteredQuestions] = useState<Question[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const tabsRef = useRef<HTMLDivElement>(null); // Ref for the Tabs component
   
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "teacher") {
@@ -159,7 +160,12 @@ const CreateExam = () => {
   const handleFilterChange = (filteredQuestions: Question[]) => {
     setFilteredQuestions(filteredQuestions);
   };
-
+  const goToQuestionsTab = () => {
+        const questionsTabTrigger = document.getElementById("questions-tab");
+        if (questionsTabTrigger) {
+          (questionsTabTrigger as HTMLButtonElement).click();
+        }
+      };
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <Header />
@@ -175,7 +181,7 @@ const CreateExam = () => {
           </Button>
         </div>
         
-        <Tabs defaultValue="details" className="mt-4">
+        <Tabs defaultValue="details" className="mt-4" ref={tabsRef}>
           <TabsList className="w-full max-w-md mx-auto grid grid-cols-3">
             <TabsTrigger value="details">Exam Details</TabsTrigger>
             <TabsTrigger value="questions">Questions</TabsTrigger>
@@ -351,14 +357,10 @@ const CreateExam = () => {
                 ) : (
                   <div className="text-center py-8">
                     <p className="text-gray-500">No questions selected yet</p>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => document.getElementById("questions-tab")?.click()}
-                      className="mt-2"
+                    <h3 
                     >
                       Go to Questions
-                    </Button>
+                    </h3>
                   </div>
                 )}
               </CardContent>
