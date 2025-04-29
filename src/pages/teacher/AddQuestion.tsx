@@ -239,7 +239,7 @@ const AddQuestion = () => {
           marks: parseInt(row.marks) || 1,
           chapterName: row.chapterName,
           coNumber: row.coNumber,
-          subject: row.subject || "CO", // Default to CO if subject not provided
+          subject: row.subjectName || "CO", // Default to CO if subject not provided
           createdBy: user?.id,
           // No image support in CSV import
         };
