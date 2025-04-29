@@ -8,15 +8,16 @@ export const downloadQuestionCsvTemplate = () => {
       'option4',
       'correctAnswers',
       'marks',
+      'subjectName',
       'chapterName',
       'coNumber'
     ].join(',');
   
     // Sample data rows
     const rows = [
-      '"What is the primary function of the ALU in a CPU?","Decoding instructions","Executing arithmetic and logical operations","Storing data temporarily","Fetching instructions","o2",2,"Central Processing Unit","CO4"',
-      '"Which of the following are types of computer memory? (Select all that apply)","RAM","ROM","Cache","BIOS","o1,o2,o3",3,"Memory Organisation","CO5"',
-      '"What is the purpose of the Control Unit in a CPU?","Performing mathematical operations","Managing input/output operations","Coordinating the activities of CPU components","Permanently storing the BIOS","o3",1,"Central Processing Unit","CO4"'
+      '"What is the primary function of the ALU in a CPU?","Decoding instructions","Executing arithmetic and logical operations","Storing data temporarily","Fetching instructions","o2",2,"CA","Central Processing Unit","CO4"',
+      '"Which of the following are types of computer memory? (Select all that apply)","RAM","ROM","Cache","BIOS","o1,o2,o3",3,"CO","Memory Organisation","CO5"',
+      '"What is the purpose of the Control Unit in a CPU?","Performing mathematical operations","Managing input/output operations","Coordinating the activities of CPU components","Permanently storing the BIOS","o3",1,"CA","Central Processing Unit","CO4"'
     ];
   
     // Combine headers and rows

@@ -691,7 +691,7 @@ const AddQuestion = () => {
                       <FileUp className="h-10 w-10 text-gray-400 mb-2" />
                       <h3 className="font-medium">Upload CSV File</h3>
                       <p className="text-sm text-gray-500 mb-4">
-                        The CSV file must include: questionText, options, correctAnswers, marks, chapterName, coNumber
+                        The CSV file must include: questionText, options, correctAnswers, marks, subjectName, chapterName, coNumber
                       </p>
                       <div className="flex flex-col gap-2 w-full max-w-xs">
                         <Button
@@ -823,10 +823,15 @@ const AddQuestion = () => {
                             <td className="py-2">Point value (integer)</td>
                           </tr>
                           <tr className="border-b">
+                            <td className="py-2 pr-4 font-mono text-xs">subjectName</td>
+                            <td className="py-2">Subject name(CA/CO)</td>
+                          </tr>
+                          <tr className="border-b">
                             <td className="py-2 pr-4 font-mono text-xs">chapterName</td>
                             <td className="py-2">Chapter name</td>
                           </tr>
                           <tr className="border-b">
+                          <td className="py-2 pr-4 font-mono text-xs">Course Outcome</td>
                             <td className="py-2">Course outcome (e.g., "CO1")</td>
                           </tr>
                         </tbody>
