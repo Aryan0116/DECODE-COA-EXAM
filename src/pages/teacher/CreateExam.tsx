@@ -277,9 +277,14 @@ const CreateExam = () => {
                                 ))}
                               </div>
                               <div className="mt-2 flex items-center text-xs text-gray-500 space-x-3">
-                                <span>Marks: {question.marks}</span>
-                                <span>Chapter: {question.chapterName}</span>
-                                <span>CO: {question.coNumber}</span>
+                              <span>Subject: {question.subject}</span>
+                                 
+                                 <span>Chapter: {question.chapterName}</span>
+                                 <span>CO: {question.coNumber}</span>
+                                 <span>Marks: {question.marks}</span>
+                                 {question.createdBy && user && question.createdBy === user.id && (
+                                   <span>Created by you</span>
+                                 )}
                               </div>
                             </div>
                           </div>

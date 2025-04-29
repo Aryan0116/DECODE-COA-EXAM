@@ -12,21 +12,21 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { downloadQuestionCsvTemplate } from '@/utils/helpers';
 import Papa from 'papaparse';
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { 
-  Upload, 
-  Plus, 
-  Trash2, 
-  FileUp, 
+import {
+  Upload,
+  Plus,
+  Trash2,
+  FileUp,
   AlertTriangle
 } from "lucide-react";
-import { 
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -45,7 +45,7 @@ const AddQuestion = () => {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   // State for manual question creation
   const [questionText, setQuestionText] = useState("");
   const [options, setOptions] = useState<Option[]>([
@@ -56,27 +56,26 @@ const AddQuestion = () => {
   ]);
   const [correctAnswers, setCorrectAnswers] = useState<string[]>([]);
   const [marks, setMarks] = useState(1);
-  const [chapterName, setChapterName] = useState("");
-  const [coNumber, setCoNumber] = useState("");
-  const [subjectType, setSubjectType] = useState<"CO" | "CA">("CO");
-  const [subjectNumber, setSubjectNumber] = useState<string>("1");
+  const [subject, setSubject] = useState<string>("CO");
+  const [chapterName, setChapterName] = useState<string>("");
+  const [coNumber, setCoNumber] = useState<string>("");
   const [image, setImage] = useState<string | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [uploadedQuestions, setUploadedQuestions] = useState<Question[]>([]);
-  
+
   // State for list of questions
   const [questions, setQuestions] = useState<Question[]>([]);
   const [filteredQuestions, setFilteredQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(false);
-  
+
   const [questionToDelete, setQuestionToDelete] = useState<string | null>(null);
-  
+
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "teacher") {
       navigate("/login");
       return;
     }
-    
+
     // Load questions from Supabase
     const loadQuestions = async () => {
       try {
@@ -96,14 +95,35 @@ const AddQuestion = () => {
         setLoading(false);
       }
     };
-    
+
     loadQuestions();
   }, [isAuthenticated, user, navigate, toast]);
 
-  // Update CO number when subject type or number changes
-  useEffect(() => {
-    setCoNumber(`${subjectType}${subjectNumber}`);
-  }, [subjectType, subjectNumber]);
+  const subjects = [
+    { value: "CO", label: "COMPUTER ORGANISATION (CO)" },
+    { value: "CA", label: "COMPUTER ARCHITECTURE (CA)" },
+  ];
+
+  const chapterNames = {
+    "CO": {
+      "1": "Basics of Computers and Von Neumann Architecture",
+      "2": "Number Systems, ALU Design, Multiplication and Division Algorithms, IEEE 754 Standard",
+      "3": "Instruction Formats and Addressing Modes",
+      "4": "Memory Hierarchy: Cache, Virtual Memory, and CPU-Memory Interfacing",
+      "5": "Control Unit Design, Pipelining, and RISC vs CISC Architectures",
+      "6": "I/O Organization: Handshaking, Polling, Interrupts, and DMA",
+    },
+    "CA": {
+      "1": "Fundamentals of Computer Architecture and Performance Evaluation and Optimization",
+      "2": "Pipelining",
+      "3": "Hierarchical Memory Architecture and Management",
+      "4": "Instruction-Level Parallelism and Advanced Processor Architectures",
+      "5": "Array and Vector Processors",
+      "6": "Multiprocessor and Non-von Neumann Architectures",
+    },
+  };
+
+  const coNumbers = ["CO1", "CO2", "CO3", "CO4", "CO5", "CO6"];
 
   const handleAddOption = () => {
     const newId = `o${options.length + 1}`;
@@ -124,13 +144,13 @@ const AddQuestion = () => {
   };
 
   const handleOptionTextChange = (id: string, text: string) => {
-    setOptions(options.map(option => 
+    setOptions(options.map(option =>
       option.id === id ? { ...option, text } : option
     ));
   };
 
   const handleCorrectAnswerToggle = (id: string) => {
-    setCorrectAnswers(prev => 
+    setCorrectAnswers(prev =>
       prev.includes(id)
         ? prev.filter(answerId => answerId !== id)
         : [...prev, id]
@@ -149,110 +169,36 @@ const AddQuestion = () => {
     }
   };
 
-  // const handleCsvUpload = (e: ChangeEvent<HTMLInputElement>) => {
-  //   const file = e.target.files?.[0];
-  //   if (file) {
-  //     setCsvFile(file);
-      
-  //     // In a real app, you would parse the CSV file
-  //     // For now, we'll just pretend it was successful
-  //     toast({
-  //       title: "CSV file selected",
-  //       description: "Ready to import questions from CSV.",
-  //     });
-  //   }
-  // };
+  const handleCsvUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCsvFile(file);
 
-  // const importQuestionsFromCsv = () => {
-  //   if (!csvFile) {
-  //     toast({
-  //       title: "No file selected",
-  //       description: "Please select a CSV file first.",
-  //       variant: "destructive",
-  //     });
-  //     return;
-  //   }
-    
-  //   // Mock CSV import - in a real app, you would parse the CSV and create questions
-  //   const mockImportedQuestions: Question[] = [
-  //     {
-  //       id: `q${Date.now()}-1`,
-  //       text: "What is the capital of France?",
-  //       options: [
-  //         { id: "o1", text: "London" },
-  //         { id: "o2", text: "Paris" },
-  //         { id: "o3", text: "Berlin" },
-  //         { id: "o4", text: "Madrid" }
-  //       ],
-  //       correctAnswers: ["o2"],
-  //       marks: 2,
-  //       chapterName: "Geography",
-  //       coNumber: "CO1",
-  //     },
-  //     {
-  //       id: `q${Date.now()}-2`,
-  //       text: "Which of the following are primary colors?",
-  //       options: [
-  //         { id: "o1", text: "Red" },
-  //         { id: "o2", text: "Green" },
-  //         { id: "o3", text: "Blue" },
-  //         { id: "o4", text: "Orange" }
-  //       ],
-  //       correctAnswers: ["o1", "o3"],
-  //       marks: 3,
-  //       chapterName: "Art",
-  //       coNumber: "CO2",
-  //     },
-  //   ];
-    
-  //   setUploadedQuestions(mockImportedQuestions);
-    
-  //   toast({
-  //     title: "Import successful",
-  //     description: `Imported ${mockImportedQuestions.length} questions.`,
-  //   });
-  // };
-
-  const confirmImportQuestions = async () => {
-    try {
-      // Save all uploaded questions
-      await saveQuestions(uploadedQuestions);
-      
-      // Update local state
-      const updatedQuestions = [...questions, ...uploadedQuestions];
-      setQuestions(updatedQuestions);
-      setFilteredQuestions(updatedQuestions);
+      // Reset any previously uploaded questions
       setUploadedQuestions([]);
-      setCsvFile(null);
-      
+
       toast({
-        title: "Questions added",
-        description: `Added ${uploadedQuestions.length} questions to your collection.`,
-      });
-    } catch (error) {
-      console.error("Error saving imported questions:", error);
-      toast({
-        title: "Error saving questions",
-        description: "There was a problem saving the imported questions.",
-        variant: "destructive",
+        title: "CSV file selected",
+        description: "Click 'Import Questions' to preview questions from CSV.",
       });
     }
   };
+
   const parseQuestionCsv = (csvData) => {
     try {
       // Define the expected CSV headers
       const expectedHeaders = [
-        'questionText', 'option1', 'option2', 'option3', 'option4', 'correctAnswers', 'marks', 'chapterName', 'coNumber'
+        'questionText', 'option1', 'option2', 'option3', 'option4', 'correctAnswers', 'marks','subjectName', 'chapterName', 'coNumber'
       ];
-      
+
       // Validate CSV structure
       const headers = Object.keys(csvData[0]);
       const missingHeaders = expectedHeaders.filter(header => !headers.includes(header));
-      
+
       if (missingHeaders.length > 0) {
         throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`);
       }
-      
+
       // Transform the CSV data into Question objects
       return csvData.map((row, index) => {
         // Create option objects
@@ -262,14 +208,14 @@ const AddQuestion = () => {
           { id: 'o3', text: row.option3 },
           { id: 'o4', text: row.option4 },
         ];
-        
+
         // Additional options if they exist
         for (let i = 5; i <= 10; i++) {
           if (row[`option${i}`]) {
             options.push({ id: `o${i}`, text: row[`option${i}`] });
           }
         }
-        
+
         // Parse correct answers
         // Format should be comma-separated option IDs like "o1,o3" or numeric like "1,3"
         let correctAnswers = [];
@@ -284,7 +230,7 @@ const AddQuestion = () => {
               .map(a => `o${a}`);
           }
         }
-        
+
         return {
           id: uuidv4(),
           text: row.questionText,
@@ -293,6 +239,7 @@ const AddQuestion = () => {
           marks: parseInt(row.marks) || 1,
           chapterName: row.chapterName,
           coNumber: row.coNumber,
+          subject: row.subject || "CO", // Default to CO if subject not provided
           createdBy: user?.id,
           // No image support in CSV import
         };
@@ -302,24 +249,7 @@ const AddQuestion = () => {
       throw error;
     }
   };
-  
-  // Replace your handleCsvUpload function with this:
-  const handleCsvUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setCsvFile(file);
-      
-      // Reset any previously uploaded questions
-      setUploadedQuestions([]);
-      
-      toast({
-        title: "CSV file selected",
-        description: "Click 'Import Questions' to preview questions from CSV.",
-      });
-    }
-  };
-  
-  // Replace your importQuestionsFromCsv function with this:
+
   const importQuestionsFromCsv = () => {
     if (!csvFile) {
       toast({
@@ -329,13 +259,13 @@ const AddQuestion = () => {
       });
       return;
     }
-    
+
     // Show loading toast
     toast({
       title: "Processing CSV",
       description: "Parsing and validating your questions...",
     });
-    
+
     // Parse the CSV file
     Papa.parse(csvFile, {
       header: true,
@@ -345,15 +275,15 @@ const AddQuestion = () => {
           if (results.errors.length > 0) {
             throw new Error(`CSV parsing error: ${results.errors[0].message}`);
           }
-          
+
           if (results.data.length === 0) {
             throw new Error("No data found in CSV file");
           }
-          
+
           // Parse the CSV data into Question objects
           const parsedQuestions = parseQuestionCsv(results.data);
           setUploadedQuestions(parsedQuestions);
-          
+
           toast({
             title: "Import successful",
             description: `Imported ${parsedQuestions.length} questions. Review and click 'Add to Question Bank' to save.`,
@@ -377,6 +307,33 @@ const AddQuestion = () => {
       }
     });
   };
+
+  const confirmImportQuestions = async () => {
+    try {
+      // Save all uploaded questions
+      await saveQuestions(uploadedQuestions);
+
+      // Update local state
+      const updatedQuestions = [...questions, ...uploadedQuestions];
+      setQuestions(updatedQuestions);
+      setFilteredQuestions(updatedQuestions);
+      setUploadedQuestions([]);
+      setCsvFile(null);
+
+      toast({
+        title: "Questions added",
+        description: `Added ${uploadedQuestions.length} questions to your collection.`,
+      });
+    } catch (error) {
+      console.error("Error saving imported questions:", error);
+      toast({
+        title: "Error saving questions",
+        description: "There was a problem saving the imported questions.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleCreateQuestion = async () => {
     if (!questionText) {
       toast({
@@ -386,7 +343,7 @@ const AddQuestion = () => {
       });
       return;
     }
-    
+
     if (options.some(option => !option.text)) {
       toast({
         title: "Empty options",
@@ -395,7 +352,7 @@ const AddQuestion = () => {
       });
       return;
     }
-    
+
     if (correctAnswers.length === 0) {
       toast({
         title: "No correct answer",
@@ -404,7 +361,7 @@ const AddQuestion = () => {
       });
       return;
     }
-    
+
     if (!chapterName || !coNumber) {
       toast({
         title: "Missing information",
@@ -413,7 +370,7 @@ const AddQuestion = () => {
       });
       return;
     }
-    
+
     const newQuestion: Question = {
       id: uuidv4(), // Use UUID v4 to generate a proper UUID
       text: questionText,
@@ -422,21 +379,22 @@ const AddQuestion = () => {
       marks,
       chapterName,
       coNumber,
+      subject,
       createdBy: user?.id,
       ...(image && { image }),
     };
-    
+
     try {
       setLoading(true);
       // Save the question to Supabase
       const success = await saveQuestion(newQuestion);
-      
+
       if (success) {
         // Update local state
         const updatedQuestions = [...questions, newQuestion];
         setQuestions(updatedQuestions);
         setFilteredQuestions(updatedQuestions);
-        
+
         // Reset form
         setQuestionText("");
         setOptions([
@@ -448,9 +406,10 @@ const AddQuestion = () => {
         setCorrectAnswers([]);
         setMarks(1);
         setChapterName("");
-        // Don't reset subject type and number to maintain user's preference
+        setCoNumber("");
+        // Don't reset subject to maintain user's preference
         setImage(null);
-        
+
         toast({
           title: "Question created",
           description: "New question added to your collection.",
@@ -477,35 +436,18 @@ const AddQuestion = () => {
   const handleDeleteQuestion = (questionId: string) => {
     setQuestionToDelete(questionId);
   };
-  const chapterNames = {
-    "CO": {
-      "1": "Introduction to Computer Organisation",
-      "2": "Data Representation",
-      "3": "Digital Logic Circuits",
-      "4": "Central Processing Unit",
-      "5": "Memory Organisation",
-      "6": "Input/Output Organisation",
-    },
-    "CA": {
-      "1": "Fundamentals of Computer Architecture",
-      "2": "Instruction Set Architecture",
-      "3": "Pipelining",
-      "4": "Memory Hierarchy Design",
-      "5": "Input/Output Systems",
-      "6": "Parallel Processing",
-    },
-  };
+
   const confirmDeleteQuestion = async () => {
     if (questionToDelete) {
       try {
         const success = await deleteQuestion(questionToDelete);
-        
+
         if (success) {
           // Update local state
           setQuestions(prev => prev.filter(q => q.id !== questionToDelete));
           setFilteredQuestions(prev => prev.filter(q => q.id !== questionToDelete));
           setQuestionToDelete(null);
-          
+
           toast({
             title: "Question deleted",
             description: "The question has been removed from your question bank.",
@@ -527,7 +469,7 @@ const AddQuestion = () => {
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <Header />
-      
+
       <main className="flex-1 container py-8">
         <div className="flex flex-col gap-8">
           <div className="flex items-center justify-between">
@@ -539,14 +481,14 @@ const AddQuestion = () => {
               Back to Dashboard
             </Button>
           </div>
-          
+
           <Tabs defaultValue="create">
             <TabsList className="w-full max-w-md mx-auto grid grid-cols-3">
               <TabsTrigger value="create">Create Question</TabsTrigger>
               <TabsTrigger value="import">Import CSV</TabsTrigger>
               <TabsTrigger value="questions">Question Bank</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="create" className="mt-6">
               <Card className="glass-morphism animate-fade-in">
                 <CardHeader>
@@ -566,11 +508,10 @@ const AddQuestion = () => {
                       className="min-h-24"
                     />
                   </div>
-                  
+
                   <Label>If more then one correct Select Multiple (MSQ)</Label>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                    
                       <Label>Options</Label>
                       <Button
                         type="button"
@@ -583,7 +524,7 @@ const AddQuestion = () => {
                         Add Option
                       </Button>
                     </div>
-                    
+
                     {options.map((option) => (
                       <div key={option.id} className="flex items-start gap-2">
                         <Checkbox
@@ -612,77 +553,79 @@ const AddQuestion = () => {
                       Check the box for correct answer(s)
                     </p>
                   </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                  <div className="grid grid-cols-1 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="subject-type">Subject Name</Label>
-                      <Select 
-                        value={subjectType} 
-                        onValueChange={(value) => setSubjectType(value as "CO" | "CA")}
+                      <Label htmlFor="subject">Subject Name</Label>
+                      <Select
+                        value={subject}
+                        onValueChange={setSubject}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select subject type" />
+                          <SelectValue placeholder="Select subject" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="CO">COMPUTER ORGANISATION (CO)</SelectItem>
-                          <SelectItem value="CA">COMPUTER ARCHITECTURE (CA)</SelectItem>
+                          {subjects.map(subj => (
+                            <SelectItem key={subj.value} value={subj.value}>
+                              {subj.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
-                    
-                    <div className="space-y-2">
-  <Label htmlFor="subject-number">CHAPTER NAME</Label>
-  <Select
-    value={subjectNumber}
-    onValueChange={setSubjectNumber}
-  >
-    <SelectTrigger>
-      <SelectValue placeholder="Select chapter" />
-    </SelectTrigger>
-    <SelectContent>
-      {[1, 2, 3, 4, 5, 6].map(num => (
-        <SelectItem key={num} value={num.toString()}>
-          {chapterNames[subjectType]?.[num.toString()] || `Chapter ${num}`}
-        </SelectItem>
-      ))}
-    </SelectContent>
-  </Select>
-</div>
                   </div>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="marks">Marks</Label>
-                      <Input
-                        id="marks"
-                        type="number"
-                        min="1"
-                        value={marks}
-                        onChange={(e) => setMarks(parseInt(e.target.value))}
-                      />
+                      <Label htmlFor="chapter-name">Chapter Name</Label>
+                      <Select
+                        value={chapterName}
+                        onValueChange={setChapterName}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select chapter" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(chapterNames[subject] || {}).map(([num, name]) => (
+                            <SelectItem key={num} value={name as string}>
+                              {name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
+
                     <div className="space-y-2">
                       <Label htmlFor="co-number">CO Number</Label>
-                      <Input
-                        id="co-number"
-                        placeholder="e.g. CO1, CO2"
+                      <Select
                         value={coNumber}
-                        onChange={(e) => setCoNumber(e.target.value)}
-                        readOnly
-                      />
+                        onValueChange={setCoNumber}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select CO number" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {coNumbers.map(co => (
+                            <SelectItem key={co} value={co}>
+                              {co}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
-                    <Label htmlFor="chapter">Topic Name</Label>
+                    <Label htmlFor="marks">Marks</Label>
                     <Input
-                      id="chapter"
-                      placeholder="e.g. Name of Topic"
-                      value={chapterName}
-                      onChange={(e) => setChapterName(e.target.value)}
+                      id="marks"
+                      type="number"
+                      min="1"
+                      value={marks}
+                      onChange={(e) => setMarks(parseInt(e.target.value))}
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label>Image (Optional)</Label>
                     <div className="flex items-center gap-4">
@@ -726,7 +669,7 @@ const AddQuestion = () => {
                       )}
                     </div>
                   </div>
-                  
+
                   <Button onClick={handleCreateQuestion} className="w-full">
                     Create Question
                   </Button>
@@ -734,167 +677,166 @@ const AddQuestion = () => {
               </Card>
             </TabsContent>
 
-<TabsContent value="import" className="mt-6">
-  <Card className="glass-morphism animate-fade-in">
-    <CardHeader>
-      <CardTitle>Import Questions from CSV</CardTitle>
-      <CardDescription>
-        Bulk import questions using a CSV file
-      </CardDescription>
-    </CardHeader>
-    <CardContent className="space-y-6">
-      <div className="space-y-4">
-        <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 flex flex-col items-center justify-center text-center">
-          <FileUp className="h-10 w-10 text-gray-400 mb-2" />
-          <h3 className="font-medium">Upload CSV File</h3>
-          <p className="text-sm text-gray-500 mb-4">
-            The CSV file must include: questionText, options, correctAnswers, marks, chapterName, coNumber
-          </p>
-          <div className="flex flex-col gap-2 w-full max-w-xs">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => document.getElementById("csv-file")?.click()}
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Choose File
-            </Button>
-            <Button 
-  variant="secondary"
-  size="sm"
-  onClick={downloadQuestionCsvTemplate}
->
-  <FileUp className="h-4 w-4 mr-2" />
-  Download Template
-</Button>
-          </div>
-          <Input
-            id="csv-file"
-            type="file"
-            accept=".csv"
-            className="hidden"
-            onChange={handleCsvUpload}
-          />
-          {csvFile && (
-            <div className="flex items-center gap-2 mt-4 text-sm bg-gray-50 p-2 rounded w-full max-w-xs">
-              <FileUp className="h-4 w-4 text-gray-500" />
-              <span className="truncate">{csvFile.name}</span>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-6 w-6 ml-auto"
-                onClick={() => setCsvFile(null)}
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </div>
-          )}
-        </div>
-        
-        <Button
-          onClick={importQuestionsFromCsv}
-          disabled={!csvFile}
-          className="w-full"
-        >
-          Preview Questions
-        </Button>
-      </div>
-      
-      {uploadedQuestions.length > 0 && (
-        <div className="space-y-4 mt-6">
-          <div className="flex items-center justify-between">
-            <h3 className="font-medium">Preview Imported Questions</h3>
-            <span className="text-sm text-gray-500">
-              {uploadedQuestions.length} questions found
-            </span>
-          </div>
-          
-          <div className="max-h-80 overflow-y-auto space-y-4 pr-2">
-            {uploadedQuestions.map((question, index) => (
-              <div key={index} className="border rounded-lg p-4 bg-white">
-                <p className="font-medium">{question.text}</p>
-                <div className="mt-2 space-y-1">
-                  {question.options.map((option) => (
-                    <div key={option.id} className="flex items-center gap-2">
-                      <span className={`h-2 w-2 rounded-full ${
-                        question.correctAnswers.includes(option.id)
-                          ? "bg-green-500"
-                          : "bg-gray-300"
-                      }`}></span>
-                      <span className="text-sm">{option.text}</span>
+            <TabsContent value="import" className="mt-6">
+              <Card className="glass-morphism animate-fade-in">
+                <CardHeader>
+                  <CardTitle>Import Questions from CSV</CardTitle>
+                  <CardDescription>
+                    Bulk import questions using a CSV file
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 flex flex-col items-center justify-center text-center">
+                      <FileUp className="h-10 w-10 text-gray-400 mb-2" />
+                      <h3 className="font-medium">Upload CSV File</h3>
+                      <p className="text-sm text-gray-500 mb-4">
+                        The CSV file must include: questionText, options, correctAnswers, marks, chapterName, coNumber
+                      </p>
+                      <div className="flex flex-col gap-2 w-full max-w-xs">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => document.getElementById("csv-file")?.click()}
+                        >
+                          <Upload className="h-4 w-4 mr-2" />
+                          Choose File
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={downloadQuestionCsvTemplate}
+                        >
+                          <FileUp className="h-4 w-4 mr-2" />
+                          Download Template
+                        </Button>
+                      </div>
+                      <Input
+                        id="csv-file"
+                        type="file"
+                        accept=".csv"
+                        className="hidden"
+                        onChange={handleCsvUpload}
+                      />
+                      {csvFile && (
+                        <div className="flex items-center gap-2 mt-4 text-sm bg-gray-50 p-2 rounded w-full max-w-xs">
+                          <FileUp className="h-4 w-4 text-gray-500" />
+                          <span className="truncate">{csvFile.name}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 ml-auto"
+                            onClick={() => setCsvFile(null)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
-                <div className="mt-2 flex flex-wrap items-center text-xs text-gray-500 gap-4">
-                  <span>Marks: {question.marks}</span>
-                  <span>Topic: {question.chapterName}</span>
-                  <span>CO: {question.coNumber}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          <div className="flex flex-col gap-2">
-            <Button onClick={confirmImportQuestions} className="w-full">
-              Add to Question Bank
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={() => setUploadedQuestions([])}
-              className="w-full"
-            >
-              Cancel Import
-            </Button>
-          </div>
-        </div>
-      )}
-      
-      <div className="border-t pt-4 mt-8">
-        <h3 className="font-medium mb-2">CSV Format Guidelines</h3>
-        <p className="text-sm text-gray-600 mb-4">
-          Your CSV file must include the following columns:
-        </p>
-        <div className="bg-gray-50 p-4 rounded text-sm overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left py-2 pr-4 font-medium">Column</th>
-                <th className="text-left py-2 font-medium">Description</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b">
-                <td className="py-2 pr-4 font-mono text-xs">questionText</td>
-                <td className="py-2">The full question text</td>
-              </tr>
-              <tr className="border-b">
-                <td className="py-2 pr-4 font-mono text-xs">option1, option2...</td>
-                <td className="py-2">Answer options (at least 2 required)</td>
-              </tr>
-              <tr className="border-b">
-                <td className="py-2 pr-4 font-mono text-xs">correctAnswers</td>
-                <td className="py-2">Comma-separated list (e.g., "o1,o3" or "1,3")</td>
-              </tr>
-              <tr className="border-b">
-                <td className="py-2 pr-4 font-mono text-xs">marks</td>
-                <td className="py-2">Point value (integer)</td>
-              </tr>
-              <tr className="border-b">
-                <td className="py-2 pr-4 font-mono text-xs">chapterName</td>
-                <td className="py-2">Topic or chapter name</td>
-              </tr>
-              <tr>
-                <td className="py-2 pr-4 font-mono text-xs">coNumber</td>
-                <td className="py-2">Course outcome (e.g., "CO1")</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </CardContent>
-  </Card>
-</TabsContent>
-            
+
+                    <Button
+                      onClick={importQuestionsFromCsv}
+                      disabled={!csvFile}
+                      className="w-full"
+                    >
+                      Preview Questions
+                    </Button>
+                  </div>
+
+                  {uploadedQuestions.length > 0 && (
+                    <div className="space-y-4 mt-6">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium">Preview Imported Questions</h3>
+                        <span className="text-sm text-gray-500">
+                          {uploadedQuestions.length} questions found
+                        </span>
+                      </div>
+
+                      <div className="max-h-80 overflow-y-auto space-y-4 pr-2">
+                        {uploadedQuestions.map((question, index) => (
+                          <div key={index} className="border rounded-lg p-4 bg-white">
+                            <p className="font-medium">{question.text}</p>
+                            <div className="mt-2 space-y-1">
+                              {question.options.map((option) => (
+                                <div key={option.id} className="flex items-center gap-2">
+                                  <span className={`h-2 w-2 rounded-full ${question.correctAnswers.includes(option.id)
+                                      ? "bg-green-500"
+                                      : "bg-gray-300"
+                                    }`}></span>
+                                  <span className="text-sm">{option.text}</span>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="mt-2 flex flex-wrap items-center text-xs text-gray-500 gap-4">
+                              <span>Marks: {question.marks}</span>
+                              <span>Chapter: {question.chapterName}</span>
+                              <span>CO: {question.coNumber}</span>
+                              {question.subject && <span>Subject: {question.subject}</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex flex-col gap-2">
+                        <Button onClick={confirmImportQuestions} className="w-full">
+                          Add to Question Bank
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => setUploadedQuestions([])}
+                          className="w-full"
+                        >
+                          Cancel Import
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="border-t pt-4 mt-8">
+                    <h3 className="font-medium mb-2">CSV Format Guidelines</h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Your CSV file must include the following columns:
+                    </p>
+                    <div className="bg-gray-50 p-4 rounded text-sm overflow-x-auto">
+                      <table className="min-w-full">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-2 pr-4 font-medium">Column</th>
+                            <th className="text-left py-2 font-medium">Description</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="border-b">
+                            <td className="py-2 pr-4 font-mono text-xs">questionText</td>
+                            <td className="py-2">The full question text</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="py-2 pr-4 font-mono text-xs">option1, option2...</td>
+                            <td className="py-2">Answer options (at least 2 required)</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="py-2 pr-4 font-mono text-xs">correctAnswers</td>
+                            <td className="py-2">Comma-separated list (e.g., "o1,o3" or "1,3")</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="py-2 pr-4 font-mono text-xs">marks</td>
+                            <td className="py-2">Point value (integer)</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="py-2 pr-4 font-mono text-xs">chapterName</td>
+                            <td className="py-2">Chapter name</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="py-2">Course outcome (e.g., "CO1")</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             <TabsContent value="questions" className="mt-6">
               <Card className="glass-morphism animate-fade-in">
                 <CardHeader>
@@ -906,11 +848,11 @@ const AddQuestion = () => {
                 <CardContent>
                   {questions.length > 0 ? (
                     <div className="space-y-6">
-                      <QuestionFilters 
-                        questions={questions} 
-                        onFilterChange={handleFilterChange} 
+                      <QuestionFilters
+                        questions={questions}
+                        onFilterChange={handleFilterChange}
                       />
-                      
+
                       {filteredQuestions.length > 0 ? (
                         filteredQuestions.map((question) => (
                           <div key={question.id} className="border rounded-lg p-4 bg-white">
@@ -920,25 +862,26 @@ const AddQuestion = () => {
                                 <div className="mt-2 space-y-1">
                                   {question.options.map((option) => (
                                     <div key={option.id} className="flex items-center gap-2">
-                                      <span className={`h-2 w-2 rounded-full ${
-                                        question.correctAnswers.includes(option.id)
+                                      <span className={`h-2 w-2 rounded-full ${question.correctAnswers.includes(option.id)
                                           ? "bg-green-500"
                                           : "bg-gray-300"
-                                      }`}></span>
+                                        }`}></span>
                                       <span className="text-sm">{option.text}</span>
                                     </div>
                                   ))}
                                 </div>
                                 <div className="mt-2 flex items-center text-xs text-gray-500 gap-4">
-                                  <span>Marks: {question.marks}</span>
-                                  <span>Topic: {question.chapterName}</span>
+                                <span>Subject: {question.subject}</span>
+                                 
+                                  <span>Chapter: {question.chapterName}</span>
                                   <span>CO: {question.coNumber}</span>
+                                  <span>Marks: {question.marks}</span>
                                   {question.createdBy && user && question.createdBy === user.id && (
                                     <span>Created by you</span>
                                   )}
                                 </div>
                               </div>
-                              
+
                               <div className="flex items-start gap-2">
                                 {question.image && (
                                   <div className="h-16 w-16 rounded overflow-hidden">
@@ -949,9 +892,9 @@ const AddQuestion = () => {
                                     />
                                   </div>
                                 )}
-                                
-                                <Button 
-                                  variant="ghost" 
+
+                                <Button
+                                  variant="ghost"
                                   size="icon"
                                   className="text-red-500 hover:text-red-700 hover:bg-red-100"
                                   onClick={() => handleDeleteQuestion(question.id)}
@@ -965,8 +908,8 @@ const AddQuestion = () => {
                       ) : (
                         <div className="text-center py-8">
                           <p className="text-gray-500">No questions match the current filters</p>
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             className="mt-4"
                             onClick={() => setFilteredQuestions(questions)}
                           >
@@ -989,7 +932,7 @@ const AddQuestion = () => {
           </Tabs>
         </div>
       </main>
-      
+
       <AlertDialog open={!!questionToDelete} onOpenChange={(open) => !open && setQuestionToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

@@ -311,6 +311,7 @@ export async function getQuestions(): Promise<Question[]> {
       marks: item.marks || 1,
       chapterName: item.chapter_name || '',
       coNumber: item.co_number || '',
+      subject: item.subject || '',
       image: item.image || null,
       createdBy: item.created_by
     }));
@@ -368,7 +369,8 @@ export async function saveQuestion(question: Question): Promise<boolean> {
         chapter_name: question.chapterName,
         co_number: question.coNumber,
         image: imagePath,
-        created_by: question.createdBy
+        created_by: question.createdBy,
+        subject: question.subject // <---- Add this line to save the subject
       });
 
     if (error) throw error;

@@ -11,6 +11,7 @@ export interface Question {
   marks: number;
   chapterName: string;
   coNumber: string; // Course Outcome number
+  subject: string;
   image?: string;
   createdBy?: string; // Add this for tracking who created the question
 }
@@ -93,6 +94,7 @@ export const mockQuestions: Question[] = [
     marks: 2,
     chapterName: "Geography",
     coNumber: "CO1",
+    subject: "Computer Organisation",
   },
   {
     id: "q2",
@@ -107,6 +109,7 @@ export const mockQuestions: Question[] = [
     marks: 3,
     chapterName: "Art",
     coNumber: "CO2",
+    subject: "Computer Organisation",
   },
   {
     id: "q3",
@@ -121,6 +124,7 @@ export const mockQuestions: Question[] = [
     marks: 2,
     chapterName: "Chemistry",
     coNumber: "CO3",
+    subject: "Computer Organisation",
   },
 ];
 
