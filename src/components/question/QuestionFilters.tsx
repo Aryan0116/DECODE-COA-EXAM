@@ -32,7 +32,7 @@ interface QuestionFiltersProps {
 const QuestionFilters = ({ questions, onFilterChange }: QuestionFiltersProps) => {
   // Define subjects - these must match exactly with the add question form
   const subjects = [
-    { value: "CO", label: "Computer Organisation" },
+    { value: "CO", label: "Computer Organization" },
     { value: "CA", label: "Computer Architecture" }
   ];
 
