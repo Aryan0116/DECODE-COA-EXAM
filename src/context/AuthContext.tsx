@@ -30,9 +30,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Check if secret code for teachers is valid
 const isValidTeacherCode = (code: string) => {
-  // In a real app, this would be a more secure validation
-  return code === "TEACH2025"; // Example secret code for teachers
+  const teacherCode = import.meta.env.VITE_TEACHER_CODE;
+  return code === teacherCode;
 };
+
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);

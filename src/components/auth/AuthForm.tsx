@@ -211,7 +211,7 @@ export default function AuthForm({ mode = "default", onToggleMode }: AuthFormPro
                 className="pl-10"
               />
             </div>
-            <p className="text-xs text-muted-foreground">The default test code is: TEACH2025</p>
+            {/* <p className="text-xs text-muted-foreground">The default test code is: TEACH2025</p> */}
           </div>
           
           <div className="space-y-2">
