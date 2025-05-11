@@ -100,8 +100,8 @@ const AddQuestion = () => {
   }, [isAuthenticated, user, navigate, toast]);
 
   const subjects = [
-    { value: "CO", label: "COMPUTER ORGANIZATION (CO)" },
-    { value: "CA", label: "COMPUTER ARCHITECTURE (CA)" },
+    { value: "Computer Organization", label: "COMPUTER ORGANIZATION (CO)" },
+    { value: "Computer Architecture", label: "COMPUTER ARCHITECTURE (CA)" },
   ];
 
   const chapterNames = {
