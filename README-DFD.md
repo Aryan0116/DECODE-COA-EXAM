@@ -30,8 +30,8 @@ This document provides Data Flow Diagrams (DFD) for the Exam Platform, illustrat
 │  Interface    │      │                   │      │  Management    │
 │               │      └─────────┬─────────┘      │                │
 └───────────────┘                │                └────────────────┘
-                                │
-                                ▼
+                                 │
+                                 ▼
 ┌───────────────┐      ┌───────────────────┐      ┌────────────────┐
 │               │      │                   │      │                │
 │  Student      │◄────►│  Exam Taking      │◄────►│  Results &     │
